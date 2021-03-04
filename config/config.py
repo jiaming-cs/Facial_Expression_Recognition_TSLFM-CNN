@@ -1,0 +1,10 @@
+AGR = 0
+CTM = 1
+DIS = 2
+FER = 3
+HAP = 4
+SAD = 5
+SUP = 6
+
+SIKP_FRAMES = 4
+MAP_LENGTH = 2
