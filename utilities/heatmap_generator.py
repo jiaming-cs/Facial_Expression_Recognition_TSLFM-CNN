@@ -1,6 +1,7 @@
 import cv2
 import dlib
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 class LTSLFM:
@@ -12,13 +13,16 @@ class LTSLFM:
         self.draw_landmarks = True
         self.landmarks_list = []
         self.resize_factor = 0.5
+        self.cmap = plt.get_cmap('jet')
 
-    def __rect_to_bb(self, rect, resize_factor):
+    def __rect_to_bb(self, 
+                     rect, 
+                     resize_factor):
         x0 = int(rect.left() / resize_factor)
         y0 = int(rect.top() / resize_factor)
         x1 = int(rect.right() / resize_factor)
         y1 = int(rect.bottom() / resize_factor)
-        return (x0, y0), (x1, y1)
+        return ((x0, y0), (x1, y1))
 
     def __shape_to_np(self, shape, resize_factor):
         coords = np.zeros((68, 2), dtype='int')
@@ -26,35 +30,33 @@ class LTSLFM:
             coords[i] = (int(shape.part(i).x / resize_factor), int(shape.part(i).y / resize_factor))
         return coords
 
-    def extract_landmarks(self, frame):
+    def extract_landmarks(self, 
+                          frame):
         frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         frame_gray = cv2.resize(frame_gray, (0, 0), fx=self.resize_factor, fy=self.resize_factor)
         rects = self.detector(frame_gray, 1)
         shapes = []
+        bbox = None
         for i, rect in enumerate(rects):
             shape = self.predictor(frame_gray, rect)
-            shape = self.__shape_to_np(shape)
-            p0, p1 = self.__rect_to_bb(rect)
-            cv2.rectangle(frame, p0, p1, (0, 255, 0), 2)
+            shape = self.__shape_to_np(shape, self.resize_factor)
+            bbox = self.__rect_to_bb(rect, self.resize_factor)
             shapes.append(shape)
-        
-        if self.draw_landmarks:
-            for p in shapes[0]:
-                frame = cv2.circle(frame, (p[0], p[1]), 1, (0, 255, 0), -1)
-        if len(self.landmarks_list) == 5:
-            self.construct_LTSLFM()
-
-        return frame
+        if len(shapes) == 0:
+            landmarks = None
+        else:
+            landmarks = shapes[0]
+            self.landmarks_list.append(landmarks)
+        return bbox, landmarks
     
     def __normalize(self, landmarks):
-        out = []
-        for landmark in landmarks:
-            l = np.linalg.norm(landmark[27] - landmark[8])
-            for i in range(68):
-                landmark[i] = (landmark[i] - landmark[33]) / l
-                # landmark[i] = (landmark[i] - landmark[33])
-            out.append(landmark)
-        return np.asarray(out)
+        landmarks = landmarks.astype('float')
+        l = np.linalg.norm(landmarks[27] - landmarks[8])
+        for i in range(68):
+            landmarks[i] = (landmarks[i] - landmarks[33]) / l
+            # landmark[i] = (landmark[i] - landmark[33])
+        
+        return landmarks
 
     def construct_LTSLFM(self):
         normalized_landmarks = np.stack([self.__normalize(landmarks) for landmarks in self.landmarks_list])
@@ -77,7 +79,8 @@ class LTSLFM:
                 row.append(heat_maps[i*2+j])
             concatenated_heatmap.append(np.hstack(row))
         concatenated_heatmap = np.vstack(concatenated_heatmap)
-        return concatenated_heatmap
+        rgb_heatmap = np.delete(self.cmap(concatenated_heatmap), 3, 2)
+        return rgb_heatmap
 
 
     

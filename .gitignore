@@ -1,2 +1,5 @@
-/venv
+./venv
 /models
+**/__pycache__/
+/.vscode
+/data
