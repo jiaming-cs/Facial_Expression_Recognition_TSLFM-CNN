@@ -49,7 +49,7 @@ if __name__ == '__main__':
         visualize_result(frame, bbox, heatmap, landmarks, pred_exp, frame_index)
         cv2.imshow('out', frame)
 
-        if cv2.waitKey(30) & 0xFF == ord('q'):
+        if cv2.waitKey(30) == 27:
             break
                 
         

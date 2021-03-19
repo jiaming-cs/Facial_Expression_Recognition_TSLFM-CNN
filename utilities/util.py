@@ -1,6 +1,12 @@
 import cv2
 from config.config import *
 
+def draw_lines(img, position, lines):
+    for i, line in enumerate(lines):
+        p = (position[0], position[1] - (len(lines) - i - 1) * LINE_HEIGHT)
+        cv2.putText(img, line, p, cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 1)
+    
+
 
 def visualize_result(frame,
                     bbox = None,

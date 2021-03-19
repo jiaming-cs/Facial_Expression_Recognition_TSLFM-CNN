@@ -1,7 +1,7 @@
 expression_mapping = dict(zip(list(range(7)), ["AGR", "CTM", "DIS", "FER", "HAP", "SAD", "SUP"]))
 
 
-SKIP_FRAMES = 2
+SKIP_FRAMES = 5
 MAP_LENGTH = 2
 
 
@@ -17,5 +17,13 @@ LANDMARKS_RADIOUS = 1
 FONT_SCALE = 1
 FONT_THINKNESS = 2
 FONT_COLOR = (0, 0, 255)
+
+LEFT = 'Left'
+RIGHT = 'Right'
+UP = 'Up'
+DOWN = 'Down'
+DONE = 'Done'
+
+LINE_HEIGHT = 15
 
 
