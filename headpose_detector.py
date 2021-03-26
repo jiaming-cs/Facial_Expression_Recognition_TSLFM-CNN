@@ -1,17 +1,14 @@
-import argparse
-import time
 import warnings
 import numpy as np
 import torch
 import math
-import torchvision
 from torchvision import transforms
 import cv2
 from utilities.dectect import AntiSpoofPredict
 import torch.nn as nn
 from torch.autograd import Variable
 import torchvision.models as models
-from utilities.pfld.pfld import PFLDInference, AuxiliaryNet
+from utilities.pfld.pfld import PFLDInference
 from utilities.util import draw_lines
 from config.config import *
 
@@ -62,13 +59,15 @@ class HeadPoseDetector():
         self.pitch_high = None
         self.pitch_low = None
         
-        self.tolerance_degree_yaw = 2
+        self.tolerance_degree_yaw = 0
         self.tolerance_degree_pitch = 0
-        self.tolerance_frames = 5
+        self.tolerance_frames = 2
+        
+        self.bad_pose_frames = 0
         
         
         self.preprocess_transform = transforms.Compose([transforms.ToPILImage(),transforms.Resize((224, 224)),transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406],std=[0.229, 0.224, 0.225])])
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
 
         model_save_path = "./models/wiki2020.pth" #mode path
         self.emotion = None
@@ -134,6 +133,10 @@ class HeadPoseDetector():
         y2 = point_2[1]
         distance = ((x1-x2)**2 + (y1-y2)**2)**0.5
         return distance
+    
+    def get_setting(self):
+        return f"yaw_high:{self.yaw_high}\nyaw_low:{self.yaw_low}\npitch_high: {self.pitch_high}\npitch_low:{self.pitch_low}"
+
 
     def get_pose(self, img):
         height, width = img.shape[:2]
@@ -226,80 +229,57 @@ class HeadPoseDetector():
 
         return yaw, pitch, roll
     
+    def check_setup_status(self):
+        if not self.yaw_low:
+            return LEFT #left
+        elif not self.yaw_high:
+            return RIGHT #right
+        elif not self.pitch_low:
+            return UP #up
+        elif not self.pitch_high:
+            return DOWN #down
+        else:
+            return DONE    
     
+    def init_setup(self):
+        self.yaw_low, self.yaw_high, self.pitch_high, self.pitch_low = None, None, None, None
 
+    def setup(self, frame):    
+        yaw, pitch, roll = self.get_pose(frame)
+        
+        # cv2.putText(frame, f"Head_Yaw(degree): {yaw}", (30, 50),
+        #             cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 255, 0), 2)
+        # cv2.putText(frame, f"Head_Pitch(degree): {pitch}", (
+        #     30, 100), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 255, 0), 2)
+        # cv2.putText(frame, f"Head_Roll(degree): {roll}", (30, 150),
+        #             cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 255, 0), 2)
+        # videoWriter.write(img)
+        
+        
+        status = self.check_setup_status()
+        
 
-    def setup(self):
-        def check_setup_status():
-            if not self.yaw_low:
-                return "Left" #left
-            elif not self.yaw_high:
-                return "Right" #right
-            elif not self.pitch_low:
-                return "Up" #up
-            elif not self.pitch_high:
-                return "Down" #down
-            else:
-                return "Done"
+        if status == LEFT:
+            self.yaw_low = yaw
+            ret_status = RIGHT
             
-        def init_setup():
-            self.yaw_low, self.yaw_high, self.pitch_high, self.pitch_low = None, None, None, None
+        elif status == RIGHT:
+            self.yaw_high = yaw
+            ret_status = UP
             
-        while True:
-            ret, frame = self.videoCapture.read()
-            if not ret:
-                print("Can't open camera")
-                break
-            yaw, pitch, roll = self.get_pose(frame)
+        elif status == UP:
+            self.pitch_low = pitch
+            ret_status = DOWN
             
-            cv2.putText(frame, f"Head_Yaw(degree): {yaw}", (30, 50),
-                        cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 255, 0), 2)
-            cv2.putText(frame, f"Head_Pitch(degree): {pitch}", (
-                30, 100), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 255, 0), 2)
-            cv2.putText(frame, f"Head_Roll(degree): {roll}", (30, 150),
-                        cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 255, 0), 2)
-            # videoWriter.write(img)
-            
-            
-            status = check_setup_status()
-            lines = f"yaw_low = {self.yaw_low}\nyaw_high = {self.yaw_high}\npitch_high = {self.pitch_high}\npitch_low = {self.pitch_low}\n" + f"Please Look at {status} most side of your screen\nPress 'enter' to confirm\n'c' to clear the selection."
-            lines = lines.split('\n')
-
-            draw_lines(frame, (0, frame.shape[0]-5), lines)
-            selection = cv2.waitKey(30)
-            if selection == 27:
-                cv2.destroyWindow("setup")
-                return
-            elif status == LEFT:
-                if selection == 13:
-                    self.yaw_low = yaw
-                elif selection == ord('c'):
-                    init_setup()
-            elif status == RIGHT:
-                if selection == 13:
-                    self.yaw_high = yaw
-                elif selection == ord('c'):
-                    init_setup()
-            elif status == UP:
-                if selection == 13:
-                    self.pitch_low = pitch
-                elif selection == ord('c'):
-                    init_setup()
-            elif status == DOWN:
-                if selection == 13:
-                    self.pitch_high = pitch
-                elif selection == ord('c'):
-                    init_setup()
-            elif status == DONE :
-                cv2.destroyWindow("setup")
-                print(f"yaw_low = {self.yaw_low}\nyaw_high = {self.yaw_high}\npitch_high = {self.pitch_high}\npitch_low = {self.pitch_low}\n" + f"Please Look at {status} most side of your screen\nPress 'enter' to confirm\n'c' to clear the selection.")
-                return 
-
-            
-            cv2.imshow("setup", frame)
+        elif status == DOWN:    
+            self.pitch_high = pitch
+            ret_status = DONE
+        info = f"yaw_low = {self.yaw_low}\nyaw_high = {self.yaw_high}\npitch_high = {self.pitch_high}\npitch_low = {self.pitch_low}\n" + f"Please Look at {status} most side of your screen\nPress 'enter' to confirm\n'c' to clear the selection."
+        
+        
+        return ret_status, info    
     
-    def detect(self):
-        def check_pose(yaw, pitch):
+    def check_pose(self, yaw, pitch):
             if (yaw > self.yaw_low - self.tolerance_degree_yaw 
                 and yaw < self.yaw_high + self.tolerance_degree_yaw
                 and pitch > self.pitch_low - self.tolerance_degree_yaw
@@ -307,39 +287,35 @@ class HeadPoseDetector():
                 return True
             else:
                 return False
-        bad_pose_frames = 0
-        while True:
-            ret, frame = self.videoCapture.read()
-            if not ret:
-                print("Can't open camera")
-                break
-            yaw, pitch, roll = self.get_pose(frame)
             
+    def detect(self, frame):
+        
+        
+        
+        yaw, pitch, roll = self.get_pose(frame)
+        
+        
+        
+        # cv2.putText(frame, f"Head_Yaw(degree): {yaw}", (30, 50),
+        #             cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 255, 0), 2)
+        # cv2.putText(frame, f"Head_Pitch(degree): {pitch}", (
+        #     30, 100), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 255, 0), 2)
+        # cv2.putText(frame, f"Head_Roll(degree): {roll}", (30, 150),
+        #             cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 255, 0), 2)
+        
+        if not self.check_pose(yaw, pitch):
+            self.bad_pose_frames += 1
+        else:
+            self.bad_pose_frames = 0
+        if self.bad_pose_frames > self.tolerance_frames:
+            return False, yaw, pitch, roll
+        else:
+            return True, yaw, pitch, roll
             
-            
-            cv2.putText(frame, f"Head_Yaw(degree): {yaw}", (30, 50),
-                        cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 255, 0), 2)
-            cv2.putText(frame, f"Head_Pitch(degree): {pitch}", (
-                30, 100), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 255, 0), 2)
-            cv2.putText(frame, f"Head_Roll(degree): {roll}", (30, 150),
-                        cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 255, 0), 2)
-            if not check_pose(yaw, pitch):
-                bad_pose_frames += 1
-            else:
-                bad_pose_frames = 0
-            if bad_pose_frames > self.tolerance_frames:
-                cv2.putText(frame, "Please view center of the screen", (30, 250),
-                        cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 0, 255), 2)
-            
-            if cv2.waitKey(30) == 27:
-                return
- 
-            cv2.imshow("detect", frame)
-            
-if __name__ == "__main__":
-    headPostDetector = HeadPoseDetector()
-    headPostDetector.setup()
-    headPostDetector.detect()
+# if __name__ == "__main__":
+#     headPostDetector = HeadPoseDetector()
+#     headPostDetector.setup()
+#     headPostDetector.detect()
                 
 
             

@@ -1,5 +1,5 @@
 from config.config import *
-from utilities.camera import Camera
+from utilities.video import Video
 from utilities.heatmap_generator import LTSLFM
 from utilities.model import CNNModel
 from utilities.util import visualize_result
@@ -11,7 +11,7 @@ import numpy as np
 if __name__ == '__main__':
 
     # create camera object
-    camera = Camera()
+    camera = Video()
     print('Camera is set up...')
     
     model = CNNModel()
