@@ -1,3 +1,5 @@
+import os
+
 expression_mapping = dict(zip(list(range(7)), ["AGR", "CTM", "DIS", "FER", "HAP", "SAD", "SUP"]))
 
 
@@ -26,4 +28,9 @@ DONE = 'Done'
 
 LINE_HEIGHT = 15
 
+EXPRESSION_CHECK_FREQUENCY = 5
 
+
+POST_DATA_URL = "http://127.0.0.1:5000/exp"
+SQLALCHEMY_DATABASE_URI = r'sqlite:///{}'.format(os.path.join(os.getcwd(), "test.db"))
+SQLALCHEMY_DB_FILE = os.path.join(os.getcwd(), "test.db")

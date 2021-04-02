@@ -1,4 +1,6 @@
 import warnings
+import datetime
+
 import numpy as np
 import torch
 import math
@@ -9,15 +11,15 @@ import torch.nn as nn
 from torch.autograd import Variable
 import torchvision.models as models
 from utilities.pfld.pfld import PFLDInference
-from utilities.util import draw_lines
 from config.config import *
+from web.sender import send_data
 
 
 warnings.filterwarnings('ignore')
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-result = ["Surprise","Fear","Disgust","Happiness","Sadness","Anger","Neutral"]
+result = ["Surprise", "Fear", "Disgust", "Happiness", "Sadness", "Anger", "Neutral"]
 
 class Res18Feature(nn.Module):
     def __init__(self, pretrained, num_classes = 7):
@@ -138,7 +140,7 @@ class HeadPoseDetector():
         return f"yaw_high:{self.yaw_high}\nyaw_low:{self.yaw_low}\npitch_high: {self.pitch_high}\npitch_low:{self.pitch_low}"
 
 
-    def get_pose(self, img):
+    def get_pose(self, img, frame_index=None, time_stamp=None, video_name=None):
         height, width = img.shape[:2]
 
         image_bbox = self.model_test.get_bbox(img)
@@ -169,17 +171,22 @@ class HeadPoseDetector():
 
         cropped = img[int(y1):int(y2), int(x1):int(x2)]
         
-        # face = cropped[:, :, ::-1]
-        # image_tensor = self.preprocess_transform(face)
-        # tensor = Variable(torch.unsqueeze(image_tensor, dim=0).float(), requires_grad=False)
-        # tensor=tensor.cpu()
         
-        # _, outputs = self.res18(tensor)
-        # _, predicts = torch.max(outputs, 1)
-        # self.emotion = result[int(predicts.cpu().data)]
-        
-        # cv2.putText(img, self.emotion, (30, 200),
-        #                 cv2.FONT_HERSHEY_COMPLEX_SMALL, 2, (255, 255, 0), 2)
+        if frame_index is not None and frame_index % EXPRESSION_CHECK_FREQUENCY == 0:
+            face = cropped[:, :, ::-1]
+            image_tensor = self.preprocess_transform(face)
+            tensor = Variable(torch.unsqueeze(image_tensor, dim=0).float(), requires_grad=False)
+            tensor=tensor.cpu()
+            
+            _, outputs = self.res18(tensor)
+            score, predicts = torch.max(outputs, 1)
+            self.emotion = result[int(predicts.cpu().data)]
+            
+            ret_json = dict(expression=int(predicts.cpu().data), score=float(score.cpu().data), time_stamp=time_stamp, video_name=video_name)
+            
+            print(ret_json)
+            send_data(ret_json)
+            
         
         
         if (dx > 0 or dy > 0 or edx > 0 or edy > 0):
@@ -288,21 +295,10 @@ class HeadPoseDetector():
             else:
                 return False
             
-    def detect(self, frame):
+    def detect(self, frame, frame_index, time_stamp, video_name):
         
-        
-        
-        yaw, pitch, roll = self.get_pose(frame)
-        
-        
-        
-        # cv2.putText(frame, f"Head_Yaw(degree): {yaw}", (30, 50),
-        #             cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 255, 0), 2)
-        # cv2.putText(frame, f"Head_Pitch(degree): {pitch}", (
-        #     30, 100), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 255, 0), 2)
-        # cv2.putText(frame, f"Head_Roll(degree): {roll}", (30, 150),
-        #             cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 255, 0), 2)
-        
+        yaw, pitch, roll = self.get_pose(frame, frame_index, time_stamp, video_name)
+
         if not self.check_pose(yaw, pitch):
             self.bad_pose_frames += 1
         else:
