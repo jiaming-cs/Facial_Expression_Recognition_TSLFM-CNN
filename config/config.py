@@ -31,6 +31,8 @@ LINE_HEIGHT = 15
 EXPRESSION_CHECK_FREQUENCY = 5
 
 
-POST_DATA_URL = "http://127.0.0.1:5000/exp"
+POST_DATA_URL_EXP = "http://127.0.0.1:5000/exp"
+POST_DATA_URL_USER = "http://127.0.0.1:5000/user"
+POST_DATA_URL_VIDEO = "http://127.0.0.1:5000/video"
 SQLALCHEMY_DATABASE_URI = r'sqlite:///{}'.format(os.path.join(os.getcwd(), "test.db"))
 SQLALCHEMY_DB_FILE = os.path.join(os.getcwd(), "test.db")

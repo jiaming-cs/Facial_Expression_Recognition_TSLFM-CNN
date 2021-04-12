@@ -1,16 +1,17 @@
 import sys
 import cv2
 
-from PyQt5.QtGui import QImage, QPixmap
+from PyQt5.QtGui import QImage, QPixmap, QKeySequence
 from PyQt5.QtCore import  Qt
-
-from PyQt5.QtWidgets import (QApplication,  QHBoxLayout, QLabel, QMessageBox,
+from PyQt5.QtMultimedia import  QMediaPlayer
+from PyQt5.QtWidgets import (QApplication,  QHBoxLayout, QLabel, QMessageBox, QLineEdit,
         QPushButton, QStackedLayout,  QVBoxLayout, QWidget)
 
 from PyQt5.QtCore import QMutex
+import requests
 
 from utilities.video import Video
-from headpose_detector import HeadPoseDetector
+from utilities.headpose_detector import HeadPoseDetector
 from config.config import *
 from utilities.thread_collections import SetPoseThread, FrameRenewerThread, PoseDetectorThread
 from widgets.video_player import VideoPlayer
@@ -51,7 +52,7 @@ class Ui_MainWindow(QWidget):
         self.button_close = QPushButton('Exit')
         self.label_text = QLabel()
         self.label_cam = QLabel()
-
+        self.edit_user = QLineEdit()
 
         self.move(200, 200)
 
@@ -66,9 +67,11 @@ class Ui_MainWindow(QWidget):
 
         self.__layout_fun_button.addWidget(self.button_open_camera)
         self.__layout_fun_button.addWidget(self.button_close)
-
+        self.__layout_fun_button.addWidget(self.edit_user)
         self.__layout_fun_button.addWidget(self.label_text)
         self.__layout_fun_button.addWidget(self.label_cam)        
+        
+        self.edit_user.setText("Default User")        
         
         
         self.__layout_frame_and_player.addWidget(self.label_show_camera)
@@ -102,11 +105,16 @@ class Ui_MainWindow(QWidget):
         info = self.hp_detector.get_setting() + f"\n yaw = {yaw}\npitch={pitch}\nroll={roll}"
 
         if not is_good:
+            if self.video_palyer.mediaPlayer.state() != QMediaPlayer.PlayingState:
+                return
             self.video_palyer.pause_video()
-            print("Not Good")    
-        else:
+            reply = QMessageBox.information(self, '', 'Please view the center of the screen!', QMessageBox.Yes)
             self.video_palyer.resume_video()
-            print("Good")
+            print("Not Good")    
+        
+        # else: 
+        #     # self.video_palyer.resume_video()
+        #     print("Good")
         
         if not self.label_cam.isVisible():
             self.label_cam.setVisible(True)
@@ -131,7 +139,9 @@ class Ui_MainWindow(QWidget):
             print("release cam")
             self.__layout_frame_and_player.setCurrentIndex(1)
             
-            self.thread_hp_detect = PoseDetectorThread(self.cam, self.mut, self.hp_detector, self.video_palyer)
+            r = requests.post(POST_DATA_URL_USER, json=dict(name=self.edit_user.text()))
+            self.edit_user.hide()
+            self.thread_hp_detect = PoseDetectorThread(self.cam, self.mut, self.hp_detector, self.video_palyer, int(r.text))
             self.thread_hp_detect.signal.connect(self.detect_pose)
             self.thread_hp_detect.start()
 
@@ -142,7 +152,7 @@ class Ui_MainWindow(QWidget):
         self.button_close.clicked.connect(self.close)
 
     def button_open_camera_click(self):
-        info = f"Please Look at Left most side of your screen.\n Press 'enter' to confirm \n 'c' to clear the selection."
+        info = f"Please Look at Left most side of your screen.\n Press 'Space' to confirm \n 'c' to clear the selection."
         self.label_text.setText(info)
         self.thread_renew_frame.signal.connect(self.renew_image)
         if not self.thread_renew_frame.isRunning():

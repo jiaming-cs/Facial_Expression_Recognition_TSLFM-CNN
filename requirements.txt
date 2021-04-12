@@ -1,0 +1,9 @@
+torch 
+torchvision 
+torchaudio
+matplotlib
+flask
+Flask-SQLAlchemy
+PyQt5
+opencv-python
+requests

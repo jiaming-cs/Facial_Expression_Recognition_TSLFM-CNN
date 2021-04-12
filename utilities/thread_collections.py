@@ -1,9 +1,7 @@
-from threading import Thread
+
 from PyQt5 import QtCore
 from PyQt5.QtCore import QThread
 import cv2
-
-import datetime
 
 class FrameRenewerThread(QThread):
     signal = QtCore.pyqtSignal(dict)    
@@ -50,12 +48,13 @@ class SetPoseThread(QThread):
               
 class PoseDetectorThread(QThread):
     signal = QtCore.pyqtSignal(dict)  
-    def __init__(self, cam, mut, hp_detector, video_player):
+    def __init__(self, cam, mut, hp_detector, video_player, user_id):
         super().__init__()
         self.cam = cam
         self.mut = mut
         self.hp_detector = hp_detector
-        self.video_palyer = video_player
+        self.video_player = video_player
+        self.user_id = user_id
         
     def run(self):
         while not self.cam.is_open():
@@ -63,11 +62,11 @@ class PoseDetectorThread(QThread):
             self.cam.open(0)
             
         frame_index = 0
-        while not self.video_palyer.video_name:
+        while not self.video_player.video_name:
             QThread.sleep(1)
             print("sleep...")
         
-        video_name = self.video_palyer.video_name
+        video_name = self.video_player.video_name
         while True:
             self.mut.lock()  
             ret, frame = self.cam.get_frame()
@@ -78,7 +77,8 @@ class PoseDetectorThread(QThread):
             frame = cv2.resize(frame, (320, 240))
             # try:
                 
-            is_good, yaw, pitch, roll = self.hp_detector.detect(frame, frame_index, datetime.datetime.now().strftime("%m/%d/%Y, %H:%M:%S"), video_name) 
+            is_good, yaw, pitch, roll = self.hp_detector.detect(frame, frame_index, self.video_player.get_position(), 
+                                                                self.video_player.get_video_id(), self.user_id, self.video_player.is_paused()) 
 
             self.signal.emit(dict(is_good=is_good, yaw=yaw, pitch=pitch, roll=roll, frame=frame))
             

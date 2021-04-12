@@ -1,6 +1,7 @@
 import warnings
 import datetime
 
+import requests
 import numpy as np
 import torch
 import math
@@ -10,9 +11,10 @@ from utilities.dectect import AntiSpoofPredict
 import torch.nn as nn
 from torch.autograd import Variable
 import torchvision.models as models
+
 from utilities.pfld.pfld import PFLDInference
 from config.config import *
-from web.sender import send_data
+
 
 
 warnings.filterwarnings('ignore')
@@ -140,7 +142,7 @@ class HeadPoseDetector():
         return f"yaw_high:{self.yaw_high}\nyaw_low:{self.yaw_low}\npitch_high: {self.pitch_high}\npitch_low:{self.pitch_low}"
 
 
-    def get_pose(self, img, frame_index=None, time_stamp=None, video_name=None):
+    def get_pose(self, img, frame_index=None, time_stamp=None, user_id=None, video_id=None, is_paused=None):
         height, width = img.shape[:2]
 
         image_bbox = self.model_test.get_bbox(img)
@@ -172,20 +174,21 @@ class HeadPoseDetector():
         cropped = img[int(y1):int(y2), int(x1):int(x2)]
         
         
-        if frame_index is not None and frame_index % EXPRESSION_CHECK_FREQUENCY == 0:
+        if not is_paused and frame_index is not None and frame_index % EXPRESSION_CHECK_FREQUENCY == 0:
             face = cropped[:, :, ::-1]
             image_tensor = self.preprocess_transform(face)
             tensor = Variable(torch.unsqueeze(image_tensor, dim=0).float(), requires_grad=False)
             tensor=tensor.cpu()
             
             _, outputs = self.res18(tensor)
+            outputs = nn.functional.softmax(outputs)
             score, predicts = torch.max(outputs, 1)
             self.emotion = result[int(predicts.cpu().data)]
             
-            ret_json = dict(expression=int(predicts.cpu().data), score=float(score.cpu().data), time_stamp=time_stamp, video_name=video_name)
+            ret_json = dict(expression=int(predicts.cpu().data), score=float(score.cpu().data), time_stamp=time_stamp, user_id=user_id, video_id=video_id)
             
             print(ret_json)
-            send_data(ret_json)
+            requests.post(POST_DATA_URL_EXP, json=ret_json)
             
         
         
@@ -295,9 +298,9 @@ class HeadPoseDetector():
             else:
                 return False
             
-    def detect(self, frame, frame_index, time_stamp, video_name):
+    def detect(self, frame, frame_index, time_stamp, user_id, video_id, is_paused):
         
-        yaw, pitch, roll = self.get_pose(frame, frame_index, time_stamp, video_name)
+        yaw, pitch, roll = self.get_pose(frame, frame_index, time_stamp, user_id, video_id, is_paused)
 
         if not self.check_pose(yaw, pitch):
             self.bad_pose_frames += 1
